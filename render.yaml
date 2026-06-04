@@ -1,0 +1,47 @@
+# Render Blueprint — Colour Dice Arena backend (apps/server).
+#
+# The Express + Socket.io game server runs here (NOT on Vercel — Vercel cannot
+# host a persistent WebSocket server). Vercel hosts only the frontend (apps/web).
+#
+# Deploy: Render Dashboard → New + → Blueprint → connect this GitHub repo.
+# Render will prompt for the env vars marked `sync: false` (your secrets).
+#
+# `prisma db push` creates the tables from prisma/schema.prisma on each deploy
+# (idempotent — safe to re-run). It uses DIRECT_URL (port 5432).
+
+services:
+  - type: web
+    name: colour-dice-server
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    autoDeploy: true
+    buildCommand: npm install && npm run prisma:push --workspace=apps/server && npm run seed --workspace=apps/server && npm run build --workspace=apps/server
+    startCommand: npm run start --workspace=apps/server
+    healthCheckPath: /health
+    envVars:
+      # Supabase POOLED connection (port 6543, pgbouncer=true) — app runtime.
+      - key: DATABASE_URL
+        sync: false
+      # Supabase DIRECT connection (port 5432) — used by prisma db push.
+      - key: DIRECT_URL
+        sync: false
+      # Auto-generated strong secret for signing JWTs.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "7d"
+      # Your Vercel frontend origin(s), comma-separated. *.vercel.app is also
+      # allowed automatically, but set your production domain here too.
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_EMAIL
+        value: admin@colourdice.local
+      # Change this — it's the seeded admin login password.
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ROUND_TAP_TIMEOUT_MS
+        value: "0"
