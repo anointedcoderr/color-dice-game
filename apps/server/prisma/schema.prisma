@@ -1,0 +1,149 @@
+// Colour Dice Arena — Prisma schema
+// Database: PostgreSQL (Supabase). Runtime uses the pooled DATABASE_URL;
+// migrations use the direct DIRECT_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled (port 6543, pgbouncer=true) — runtime
+  directUrl = env("DIRECT_URL")   // direct (port 5432) — migrations only
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum Role {
+  user
+  admin
+}
+
+enum RoomType {
+  two_player
+  three_player
+}
+
+enum RoomStatus {
+  waiting
+  active
+  completed
+  paused
+}
+
+enum RoundStatus {
+  active
+  completed
+}
+
+// The fairness engine emits exactly these lowercase values in this order.
+// Modelling colour as a DB enum means an off-list colour can never persist.
+enum Colour {
+  red
+  black
+  blue
+  green
+  yellow
+  white
+}
+
+// ───────────────────────────── Models ────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(user)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roundPlayers RoundPlayer[]
+  fairnessLogs FairnessLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model GameRoom {
+  id         String     @id @default(cuid())
+  roomType   RoomType
+  maxPlayers Int
+  status     RoomStatus @default(waiting)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  rounds Round[]
+
+  @@index([status])
+  @@index([roomType, status])
+  @@map("game_rooms")
+}
+
+model Round {
+  id          String      @id @default(cuid())
+  roomId      String
+  roundNumber Int
+  status      RoundStatus @default(active)
+
+  // Provably-fair commitment fields:
+  serverSeedHash String // SHA256(serverSeed) — public, written at round creation
+  serverSeed     String // SECRET — never serialized to clients until status = completed
+  nonce          Int // == roundNumber
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  room    GameRoom      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  players RoundPlayer[]
+  logs    FairnessLog[]
+
+  @@unique([roomId, roundNumber])
+  @@index([roomId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("rounds")
+}
+
+model RoundPlayer {
+  id             String    @id @default(cuid())
+  roundId        String
+  userId         String
+  playerPosition Int
+  hasTapped      Boolean   @default(false)
+  tapTime        DateTime?
+  resultColor    Colour?
+  finalHash      String?
+  createdAt      DateTime  @default(now())
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  // Structural guarantee: one row (one tap) per user per round.
+  @@unique([roundId, userId])
+  @@unique([roundId, playerPosition])
+  @@index([userId])
+  @@map("round_players")
+}
+
+model FairnessLog {
+  id             String   @id @default(cuid())
+  roundId        String
+  userId         String
+  serverSeed     String
+  serverSeedHash String
+  nonce          Int
+  playerPosition Int
+  finalHash      String
+  resultColor    Colour
+  createdAt      DateTime @default(now())
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  // Exactly one immutable fairness log per (round, user).
+  @@unique([roundId, userId])
+  @@index([roundId])
+  @@index([userId])
+  @@map("fairness_logs")
+}
