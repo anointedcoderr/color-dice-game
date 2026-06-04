@@ -8,7 +8,9 @@ export function setTokenGetter(fn: () => string | null): void {
   getToken = fn;
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Strip any trailing slash(es) so `${BASE}/api/...` never produces a double
+// slash (Express 404s on `//api/...`).
+const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 
 export const TOKEN_KEY = "cda_token";
 
