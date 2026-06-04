@@ -259,8 +259,8 @@ async function completeRound(room: LiveRoom): Promise<void> {
     roundId,
     roundNumber: summary.round.roundNumber,
     players: summary.players.map((p) => ({
-      userId: p.userId,
-      username: p.user.username,
+      userId: p.userId ?? p.id,
+      username: p.user?.username ?? p.playerName ?? `Player ${p.playerPosition}`,
       playerPosition: p.playerPosition,
       resultColor: p.resultColor,
       finalHash: p.finalHash,

@@ -36,8 +36,10 @@ export interface PublicRound {
 
 export function serializePlayer(p: RoundPlayerWithUser): PublicPlayer {
   return {
-    userId: p.userId,
-    username: p.user?.username ?? null,
+    // For registered players this is the user id; for guests it's the seat's
+    // own id — the stable "subject" used in the provably-fair HMAC.
+    userId: p.userId ?? p.id,
+    username: p.user?.username ?? p.playerName ?? null,
     playerPosition: p.playerPosition,
     hasTapped: p.hasTapped,
     tapTime: p.tapTime ? p.tapTime.toISOString() : null,

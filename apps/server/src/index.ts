@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import { Server } from "socket.io";
 
-import { env, isOriginAllowed } from "./config/env";
+import { env } from "./config/env";
 import { requireAuth, requireAdmin } from "./middleware/auth";
 import { errorHandler, notFound } from "./middleware/error";
 import { registerSocket } from "./socket";
@@ -26,15 +26,11 @@ const app = express();
 const server = http.createServer(app);
 
 // ── CORS (REST) ───────────────────────────────────────────────────────────────
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (isOriginAllowed(origin ?? undefined)) callback(null, true);
-      else callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  }),
-);
+// Auth is a JWT in the Authorization header (no cookies), so reflecting any
+// origin is safe: a third-party site still can't obtain a user's token, and
+// every protected route requires that token. This makes the API work from any
+// domain or device (custom domains, phones) with no per-origin configuration.
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "100kb" }));
 
 // ── Health & info ─────────────────────────────────────────────────────────────
@@ -63,13 +59,7 @@ const io = new Server<
   InterServerEvents,
   SocketData
 >(server, {
-  cors: {
-    origin: (origin, callback) => {
-      if (isOriginAllowed(origin ?? undefined)) callback(null, true);
-      else callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  },
+  cors: { origin: true, credentials: true },
   transports: ["websocket", "polling"],
 });
 registerSocket(io);

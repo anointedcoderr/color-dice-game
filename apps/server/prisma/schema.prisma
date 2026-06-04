@@ -108,7 +108,8 @@ model Round {
 model RoundPlayer {
   id             String    @id @default(cuid())
   roundId        String
-  userId         String
+  userId         String? // null for local/guest players (single-screen pass-and-play)
+  playerName     String? // display name for local/guest players
   playerPosition Int
   hasTapped      Boolean   @default(false)
   tapTime        DateTime?
@@ -117,9 +118,10 @@ model RoundPlayer {
   createdAt      DateTime  @default(now())
 
   round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id])
+  user  User? @relation(fields: [userId], references: [id])
 
-  // Structural guarantee: one row (one tap) per user per round.
+  // One row (one tap) per registered user per round. Postgres treats NULLs as
+  // distinct, so multiple guest (null userId) seats per round are allowed.
   @@unique([roundId, userId])
   @@unique([roundId, playerPosition])
   @@index([userId])
@@ -129,7 +131,8 @@ model RoundPlayer {
 model FairnessLog {
   id             String   @id @default(cuid())
   roundId        String
-  userId         String
+  userId         String? // null for local/guest players
+  playerName     String?
   serverSeed     String
   serverSeedHash String
   nonce          Int
@@ -139,9 +142,10 @@ model FairnessLog {
   createdAt      DateTime @default(now())
 
   round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id])
+  user  User? @relation(fields: [userId], references: [id])
 
-  // Exactly one immutable fairness log per (round, user).
+  // One immutable fairness log per (round, registered user). Guests (null
+  // userId) rely on the per-seat hasTapped guard in the tap handler.
   @@unique([roundId, userId])
   @@index([roundId])
   @@index([userId])

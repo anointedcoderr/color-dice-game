@@ -39,15 +39,18 @@ router.get(
       serverSeedHash: round.serverSeedHash,
       serverSeed: round.serverSeed, // revealed — round is completed
       colors: COLORS,
-      players: round.players.map((p) => ({
-        userId: p.userId,
-        username: p.user.username,
-        playerPosition: p.playerPosition,
-        resultColor: p.resultColor,
-        finalHash: p.finalHash,
-        tapTime: p.tapTime ? p.tapTime.toISOString() : null,
-        inputString: buildMessage(round.id, p.userId, p.playerPosition, round.nonce),
-      })),
+      players: round.players.map((p) => {
+        const subject = p.userId ?? p.id;
+        return {
+          userId: subject,
+          username: p.user?.username ?? p.playerName ?? null,
+          playerPosition: p.playerPosition,
+          resultColor: p.resultColor,
+          finalHash: p.finalHash,
+          tapTime: p.tapTime ? p.tapTime.toISOString() : null,
+          inputString: buildMessage(round.id, subject, p.playerPosition, round.nonce),
+        };
+      }),
     });
   }),
 );
