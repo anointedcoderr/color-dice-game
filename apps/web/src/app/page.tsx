@@ -38,12 +38,12 @@ export default function HomePage() {
             independently verifiable.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link href={user ? "/lobby" : "/login"}>
-              <Button className="px-6 py-3 text-base">Play now →</Button>
+            <Link href="/local">
+              <Button className="px-6 py-3 text-base">Play on this device →</Button>
             </Link>
-            <Link href="/verify">
+            <Link href={user ? "/lobby" : "/login"}>
               <Button variant="ghost" className="px-6 py-3 text-base">
-                Verify a result
+                Online multiplayer
               </Button>
             </Link>
           </div>

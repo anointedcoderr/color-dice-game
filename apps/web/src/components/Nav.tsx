@@ -35,20 +35,18 @@ export function Nav() {
         </Link>
 
         <div className="flex items-center gap-1">
+          <NavLink href="/local" label="Quick Play" active={pathname.startsWith("/local")} />
           {user && (
             <>
               <NavLink href="/lobby" label="Lobby" active={pathname.startsWith("/lobby")} />
               <NavLink href="/history" label="History" active={pathname.startsWith("/history")} />
-              <NavLink href="/verify" label="Verify" active={pathname.startsWith("/verify")} />
               <NavLink href="/profile" label="Profile" active={pathname.startsWith("/profile")} />
               {user.role === "admin" && (
                 <NavLink href="/admin" label="Admin" active={pathname.startsWith("/admin")} />
               )}
             </>
           )}
-          {!user && (
-            <NavLink href="/verify" label="Verify" active={pathname.startsWith("/verify")} />
-          )}
+          <NavLink href="/verify" label="Verify" active={pathname.startsWith("/verify")} />
         </div>
 
         <div className="flex items-center gap-2">

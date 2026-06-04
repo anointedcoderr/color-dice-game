@@ -14,6 +14,7 @@ import roundRoutes from "./routes/rounds";
 import userRoutes from "./routes/users";
 import verifyRoutes from "./routes/verify";
 import adminRoutes from "./routes/admin";
+import localRoutes from "./routes/local";
 
 import type {
   ClientToServerEvents,
@@ -47,6 +48,7 @@ app.use("/api/rooms", roomRoutes);
 app.use("/api/rounds", roundRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/verify", verifyRoutes); // public — verification needs no auth
+app.use("/api/local", localRoutes); // public — single-screen pass-and-play
 app.use("/api/admin", requireAuth, requireAdmin, adminRoutes);
 
 app.use(notFound);
