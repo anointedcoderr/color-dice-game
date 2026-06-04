@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { clsx } from "clsx";
 import { Dice, type DicePhase } from "@/components/Dice";
 import { TapButton } from "@/components/TapButton";
-import { RoundSummary } from "@/components/RoundSummary";
 import { Badge, Button, Card, HashChip, Input } from "@/components/ui";
 import { api } from "@/lib/api";
 import { COLOR_HEX, COLOR_GLOW, COLOR_TEXT_ON, colorLabel } from "@/lib/colors";
-import type { ColorName, CompletedPlayer, RoomState, RoomType } from "@/lib/types";
+import type { ColorName, RoomType } from "@/lib/types";
 
 interface LocalSeat {
   playerPosition: number;
@@ -40,35 +40,61 @@ interface VerifyData {
     tapTime: string | null;
   }[];
 }
+interface SessionRoundPlayer {
+  position: number;
+  name: string;
+  color: ColorName | null;
+  userId: string;
+  finalHash: string | null;
+}
+interface SessionRound {
+  roundIndex: number;
+  roundId: string;
+  serverSeed: string;
+  serverSeedHash: string;
+  nonce: number;
+  players: SessionRoundPlayer[];
+}
 
-type Step = "setup" | "playing" | "done";
+type Step = "setup" | "playing" | "ended";
 type Revealed = { position: number; name: string; color: ColorName };
+
+function verifyHref(r: SessionRound, p: SessionRoundPlayer) {
+  const params = new URLSearchParams({
+    roundId: r.roundId,
+    userId: p.userId,
+    playerPosition: String(p.position),
+    nonce: String(r.nonce),
+    serverSeed: r.serverSeed,
+    serverSeedHash: r.serverSeedHash,
+    finalHash: p.finalHash ?? "",
+    resultColor: p.color ?? "",
+  });
+  return `/verify?${params.toString()}`;
+}
 
 export default function LocalPlayPage() {
   const [step, setStep] = useState<Step>("setup");
   const [count, setCount] = useState<2 | 3>(2);
   const [names, setNames] = useState<string[]>(["", "", ""]);
+
   const [round, setRound] = useState<LocalRound | null>(null);
+  const [roundIndex, setRoundIndex] = useState(0);
   const [phase, setPhase] = useState<DicePhase>("neutral");
   const [revealed, setRevealed] = useState<Revealed | null>(null);
+  const [roundComplete, setRoundComplete] = useState(false);
+  const [results, setResults] = useState<SessionRound | null>(null);
+  const [history, setHistory] = useState<SessionRound[]>([]);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<RoomState | null>(null);
 
   const roomType: RoomType = count === 3 ? "three_player" : "two_player";
-
-  // The player whose turn it is = first seat that hasn't tapped.
-  const activeSeat = useMemo(
-    () => round?.players.find((p) => !p.hasTapped) ?? null,
-    [round],
-  );
+  const activeSeat = useMemo(() => round?.players.find((p) => !p.hasTapped) ?? null, [round]);
   const allTapped = !!round && round.players.every((p) => p.hasTapped);
-
-  // While showing a result, highlight the player who just rolled; otherwise the
-  // player whose turn it is now.
   const highlightPos = phase === "settled" ? revealed?.position : activeSeat?.playerPosition;
 
-  async function start() {
+  async function startRound(idx: number) {
     setError(null);
     setBusy(true);
     try {
@@ -77,7 +103,10 @@ export default function LocalPlayPage() {
       }));
       const r = await api.post<LocalRound>("/api/local/rounds", { roomType, players });
       setRound(r);
+      setRoundIndex(idx);
       setRevealed(null);
+      setRoundComplete(false);
+      setResults(null);
       setPhase("neutral");
       setStep("playing");
     } catch (e) {
@@ -89,7 +118,7 @@ export default function LocalPlayPage() {
 
   async function tap() {
     if (!round || !activeSeat || busy || phase !== "neutral") return;
-    const seat = activeSeat; // capture the player tapping NOW (before state advances)
+    const seat = activeSeat;
     setBusy(true);
     setError(null);
     setPhase("spinning");
@@ -98,7 +127,7 @@ export default function LocalPlayPage() {
         `/api/local/rounds/${round.roundId}/tap`,
         { playerPosition: seat.playerPosition },
       );
-      await new Promise((r) => setTimeout(r, 850)); // let the dice spin a moment
+      await new Promise((r) => setTimeout(r, 850));
       setRound((prev) =>
         prev
           ? {
@@ -121,55 +150,53 @@ export default function LocalPlayPage() {
     }
   }
 
-  async function next() {
-    if (!round) return;
+  function advance() {
     setRevealed(null);
-    const remaining = round.players.filter((p) => !p.hasTapped).length;
-    if (remaining > 0) {
-      setPhase("neutral");
-      return;
-    }
+    setPhase("neutral");
+  }
+
+  async function finishRound() {
+    if (!round) return;
     setBusy(true);
     try {
       const v = await api.get<VerifyData>(`/api/verify/${round.roundId}`);
-      const completedSummary: CompletedPlayer[] = v.players.map((p) => ({
-        userId: p.userId,
-        username: p.username ?? "",
-        playerPosition: p.playerPosition,
-        resultColor: p.resultColor,
-        finalHash: p.finalHash,
-        tapTime: p.tapTime,
-      }));
-      setSummary({
-        roomId: null,
-        roomType,
-        maxPlayers: round.maxPlayers,
-        status: "completed",
+      const sr: SessionRound = {
+        roundIndex,
         roundId: v.roundId,
-        roundNumber: v.roundNumber,
-        serverSeedHash: v.serverSeedHash,
         serverSeed: v.serverSeed,
+        serverSeedHash: v.serverSeedHash,
         nonce: v.nonce,
-        players: [],
-        myUserId: null,
-        iHaveTapped: true,
-        myResult: null,
-        error: null,
-        completedSummary,
-      });
-      setStep("done");
+        players: v.players.map((p) => ({
+          position: p.playerPosition,
+          name: p.username ?? `Player ${p.playerPosition}`,
+          color: p.resultColor,
+          userId: p.userId,
+          finalHash: p.finalHash,
+        })),
+      };
+      setResults(sr);
+      setHistory((h) => [...h, sr]);
+      setRoundComplete(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load summary");
+      setError(e instanceof Error ? e.message : "Could not load results");
     } finally {
       setBusy(false);
     }
   }
 
-  function reset() {
+  function endGame() {
+    if (history.length > 0) setStep("ended");
+    else newGame();
+  }
+
+  function newGame() {
     setStep("setup");
     setRound(null);
-    setSummary(null);
     setRevealed(null);
+    setRoundComplete(false);
+    setResults(null);
+    setHistory([]);
+    setRoundIndex(0);
     setPhase("neutral");
     setError(null);
   }
@@ -180,7 +207,7 @@ export default function LocalPlayPage() {
       <div className="mx-auto max-w-lg space-y-6 py-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold">Quick Play</h1>
-          <p className="text-zinc-400">One device, pass it around. No login needed.</p>
+          <p className="text-zinc-400">One device, pass it around. Play as many rounds as you like.</p>
         </div>
         <Card className="space-y-5">
           <div>
@@ -221,29 +248,61 @@ export default function LocalPlayPage() {
             ))}
           </div>
           {error && <p className="text-sm text-rose-400">{error}</p>}
-          <Button onClick={start} disabled={busy} className="w-full py-3">
-            {busy ? "Starting…" : "Start round"}
+          <Button onClick={() => startRound(1)} disabled={busy} className="w-full py-3">
+            {busy ? "Starting…" : "Start game"}
           </Button>
         </Card>
       </div>
     );
   }
 
-  // ── DONE ───────────────────────────────────────────────────────────────────
-  if (step === "done" && summary) {
+  // ── ENDED: session recap ─────────────────────────────────────────────────────
+  if (step === "ended") {
     return (
-      <div className="mx-auto max-w-lg py-8">
-        <RoundSummary room={summary} onPlayAgain={reset} />
+      <div className="mx-auto max-w-lg space-y-6 py-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">Game over</h1>
+          <p className="text-zinc-400">
+            {history.length} {history.length === 1 ? "round" : "rounds"} played
+          </p>
+        </div>
+        <Card className="space-y-3">
+          {history.map((r) => (
+            <div key={r.roundId} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="mb-2 text-sm font-semibold text-zinc-300">Round {r.roundIndex}</p>
+              <div className="flex flex-wrap gap-2">
+                {r.players.map((p) => (
+                  <span
+                    key={p.position}
+                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-bold"
+                    style={{
+                      backgroundColor: p.color ? COLOR_HEX[p.color] : "#2A2A35",
+                      color: p.color ? COLOR_TEXT_ON[p.color] : "#fff",
+                    }}
+                  >
+                    {p.name}: {p.color ? colorLabel(p.color) : "—"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </Card>
+        <div className="flex justify-center gap-3">
+          <Button onClick={() => startRound(1)}>Play again (same players)</Button>
+          <Button variant="ghost" onClick={newGame}>
+            New players
+          </Button>
+        </div>
       </div>
     );
   }
 
-  // ── PLAYING ────────────────────────────────────────────────────────────────
+  // ── PLAYING ──────────────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-lg space-y-6 py-6">
       <Card className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold">Round #{round?.roundNumber}</h1>
+          <h1 className="text-lg font-bold">Round #{roundIndex}</h1>
           <Badge>{count === 3 ? "3-Player" : "2-Player"}</Badge>
           <Badge className="text-indigo-300">single screen</Badge>
         </div>
@@ -252,7 +311,7 @@ export default function LocalPlayPage() {
 
       <div className="grid grid-cols-1 gap-2">
         {round?.players.map((p) => {
-          const isHighlighted = highlightPos === p.playerPosition;
+          const isHighlighted = !roundComplete && highlightPos === p.playerPosition;
           return (
             <div
               key={p.playerPosition}
@@ -289,44 +348,78 @@ export default function LocalPlayPage() {
         })}
       </div>
 
-      <Card className="flex flex-col items-center gap-5 py-8">
-        {/* The dice lands on the colour of whoever just rolled */}
-        <Dice phase={phase} result={revealed?.color ?? null} />
-
-        {phase === "settled" && revealed ? (
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-lg text-zinc-200">
-              <span className="font-semibold">{revealed.name}</span> got{" "}
-              <span
-                className="rounded-md px-2 py-0.5 font-bold"
-                style={{
-                  backgroundColor: COLOR_HEX[revealed.color],
-                  color: COLOR_TEXT_ON[revealed.color],
-                }}
-              >
-                {colorLabel(revealed.color)}
-              </span>
-            </p>
-            <Button onClick={next} disabled={busy}>
-              {allTapped ? "See results →" : "Next player →"}
+      {roundComplete && results ? (
+        // ── round-complete panel (continuous game) ──
+        <Card className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold">Round {results.roundIndex} complete</h3>
+            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400">
+              ✓ done
+            </span>
+          </div>
+          <div className="space-y-1.5 border-t border-white/10 pt-3">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">Provably fair</p>
+            <HashChip label="seed hash" value={results.serverSeedHash} />
+            <HashChip label="server seed (revealed)" value={results.serverSeed} />
+            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-xs">
+              {results.players.map((p) => (
+                <Link key={p.position} href={verifyHref(results, p)} className="text-indigo-300 hover:underline">
+                  Verify {p.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 pt-1">
+            <Button onClick={() => startRound(roundIndex + 1)} disabled={busy} className="flex-1">
+              Next round →
+            </Button>
+            <Button variant="danger" onClick={endGame} disabled={busy}>
+              End game
             </Button>
           </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <TapButton
-              disabled={busy || !activeSeat}
-              onTap={tap}
-              label={activeSeat ? `${activeSeat.name} — Tap to Play` : "Tap to Play"}
-            />
-            <p className="text-sm text-zinc-500">Pass the device to the player whose turn it is.</p>
-          </div>
-        )}
-        {error && <p className="text-sm text-rose-400">{error}</p>}
-      </Card>
+        </Card>
+      ) : (
+        // ── rolling / reveal ──
+        <Card className="flex flex-col items-center gap-5 py-8">
+          <Dice phase={phase} result={revealed?.color ?? null} />
+          {phase === "settled" && revealed ? (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-lg text-zinc-200">
+                <span className="font-semibold">{revealed.name}</span> got{" "}
+                <span
+                  className="rounded-md px-2 py-0.5 font-bold"
+                  style={{ backgroundColor: COLOR_HEX[revealed.color], color: COLOR_TEXT_ON[revealed.color] }}
+                >
+                  {colorLabel(revealed.color)}
+                </span>
+              </p>
+              {allTapped ? (
+                <Button onClick={finishRound} disabled={busy}>
+                  See round results →
+                </Button>
+              ) : (
+                <Button onClick={advance} disabled={busy}>
+                  Next player →
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <TapButton
+                disabled={busy || !activeSeat}
+                onTap={tap}
+                label={activeSeat ? `${activeSeat.name} — Tap to Play` : "Tap to Play"}
+              />
+              <p className="text-sm text-zinc-500">Pass the device to the player whose turn it is.</p>
+            </div>
+          )}
+          {error && <p className="text-sm text-rose-400">{error}</p>}
+        </Card>
+      )}
 
       <div className="text-center">
-        <Button variant="ghost" onClick={reset}>
-          Cancel
+        <Button variant="ghost" onClick={endGame}>
+          End game
         </Button>
       </div>
     </div>
