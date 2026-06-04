@@ -42,6 +42,7 @@ interface VerifyData {
 }
 
 type Step = "setup" | "playing" | "done";
+type Revealed = { position: number; name: string; color: ColorName };
 
 export default function LocalPlayPage() {
   const [step, setStep] = useState<Step>("setup");
@@ -49,16 +50,23 @@ export default function LocalPlayPage() {
   const [names, setNames] = useState<string[]>(["", "", ""]);
   const [round, setRound] = useState<LocalRound | null>(null);
   const [phase, setPhase] = useState<DicePhase>("neutral");
+  const [revealed, setRevealed] = useState<Revealed | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<RoomState | null>(null);
 
   const roomType: RoomType = count === 3 ? "three_player" : "two_player";
 
+  // The player whose turn it is = first seat that hasn't tapped.
   const activeSeat = useMemo(
     () => round?.players.find((p) => !p.hasTapped) ?? null,
     [round],
   );
+  const allTapped = !!round && round.players.every((p) => p.hasTapped);
+
+  // While showing a result, highlight the player who just rolled; otherwise the
+  // player whose turn it is now.
+  const highlightPos = phase === "settled" ? revealed?.position : activeSeat?.playerPosition;
 
   async function start() {
     setError(null);
@@ -69,6 +77,7 @@ export default function LocalPlayPage() {
       }));
       const r = await api.post<LocalRound>("/api/local/rounds", { roomType, players });
       setRound(r);
+      setRevealed(null);
       setPhase("neutral");
       setStep("playing");
     } catch (e) {
@@ -80,16 +89,16 @@ export default function LocalPlayPage() {
 
   async function tap() {
     if (!round || !activeSeat || busy || phase !== "neutral") return;
+    const seat = activeSeat; // capture the player tapping NOW (before state advances)
     setBusy(true);
     setError(null);
     setPhase("spinning");
     try {
       const res = await api.post<{ playerPosition: number; resultColor: ColorName; completed: boolean }>(
         `/api/local/rounds/${round.roundId}/tap`,
-        { playerPosition: activeSeat.playerPosition },
+        { playerPosition: seat.playerPosition },
       );
-      // brief spin for effect before settling
-      await new Promise((r) => setTimeout(r, 850));
+      await new Promise((r) => setTimeout(r, 850)); // let the dice spin a moment
       setRound((prev) =>
         prev
           ? {
@@ -102,6 +111,7 @@ export default function LocalPlayPage() {
             }
           : prev,
       );
+      setRevealed({ position: seat.playerPosition, name: seat.name, color: res.resultColor });
       setPhase("settled");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Tap failed");
@@ -113,12 +123,12 @@ export default function LocalPlayPage() {
 
   async function next() {
     if (!round) return;
+    setRevealed(null);
     const remaining = round.players.filter((p) => !p.hasTapped).length;
     if (remaining > 0) {
       setPhase("neutral");
       return;
     }
-    // all tapped — fetch fairness data and show the summary
     setBusy(true);
     try {
       const v = await api.get<VerifyData>(`/api/verify/${round.roundId}`);
@@ -159,6 +169,7 @@ export default function LocalPlayPage() {
     setStep("setup");
     setRound(null);
     setSummary(null);
+    setRevealed(null);
     setPhase("neutral");
     setError(null);
   }
@@ -241,13 +252,13 @@ export default function LocalPlayPage() {
 
       <div className="grid grid-cols-1 gap-2">
         {round?.players.map((p) => {
-          const isActive = activeSeat?.playerPosition === p.playerPosition;
+          const isHighlighted = highlightPos === p.playerPosition;
           return (
             <div
               key={p.playerPosition}
               className={clsx(
-                "flex items-center justify-between rounded-xl border p-3",
-                isActive ? "border-indigo-400/60 bg-indigo-500/10" : "border-white/10 bg-black/20",
+                "flex items-center justify-between rounded-xl border p-3 transition",
+                isHighlighted ? "border-indigo-400/60 bg-indigo-500/10" : "border-white/10 bg-black/20",
               )}
             >
               <div className="flex items-center gap-2">
@@ -255,7 +266,9 @@ export default function LocalPlayPage() {
                   {p.playerPosition}
                 </span>
                 <span className="font-medium">{p.name}</span>
-                {isActive && <span className="text-xs text-indigo-300">← your turn</span>}
+                {isHighlighted && phase !== "settled" && (
+                  <span className="text-xs text-indigo-300">← your turn</span>
+                )}
               </div>
               {p.resultColor ? (
                 <span
@@ -277,16 +290,25 @@ export default function LocalPlayPage() {
       </div>
 
       <Card className="flex flex-col items-center gap-5 py-8">
-        <Dice phase={phase} result={activeSeat?.resultColor ?? null} />
-        {phase === "settled" ? (
+        {/* The dice lands on the colour of whoever just rolled */}
+        <Dice phase={phase} result={revealed?.color ?? null} />
+
+        {phase === "settled" && revealed ? (
           <div className="flex flex-col items-center gap-3">
-            <p className="text-zinc-300">
-              {activeSeat
-                ? `${activeSeat.name} got ${activeSeat.resultColor ? colorLabel(activeSeat.resultColor) : ""}!`
-                : "Revealed!"}
+            <p className="text-lg text-zinc-200">
+              <span className="font-semibold">{revealed.name}</span> got{" "}
+              <span
+                className="rounded-md px-2 py-0.5 font-bold"
+                style={{
+                  backgroundColor: COLOR_HEX[revealed.color],
+                  color: COLOR_TEXT_ON[revealed.color],
+                }}
+              >
+                {colorLabel(revealed.color)}
+              </span>
             </p>
             <Button onClick={next} disabled={busy}>
-              {round && round.players.every((p) => p.hasTapped) ? "See results →" : "Next player →"}
+              {allTapped ? "See results →" : "Next player →"}
             </Button>
           </div>
         ) : (
