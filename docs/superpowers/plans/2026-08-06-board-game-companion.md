@@ -498,7 +498,7 @@ git commit -m "Add Board Game companion mode"
 - Modify: `apps/web/src/components/Nav.tsx`
 - Modify: `apps/web/src/app/page.tsx`
 
-- [ ] **Step 1: Add the nav link**
+- [x] **Step 1: Add the nav link**
 
 In `apps/web/src/components/Nav.tsx`, find this line:
 
@@ -513,7 +513,7 @@ Add a new line immediately after it:
           <NavLink href="/board" label="Board Game" active={pathname.startsWith("/board")} />
 ```
 
-- [ ] **Step 2: Add the homepage CTA**
+- [x] **Step 2: Add the homepage CTA**
 
 In `apps/web/src/app/page.tsx`, find this block:
 
@@ -550,16 +550,16 @@ Replace it with:
           </div>
 ```
 
-- [ ] **Step 3: Typecheck and lint**
+- [x] **Step 3: Typecheck and lint**
 
 Run: `cd apps/web && npx tsc --noEmit && npx next lint --dir src`
 Expected: no typecheck output, `✔ No ESLint warnings or errors` from lint.
 
-- [ ] **Step 4: Manually verify**
+- [x] **Step 4: Manually verify**
 
 In the browser: confirm "Board Game" now appears in the top nav next to "Quick Play" and navigates to `/board`; confirm the homepage now shows a "Board game companion" button next to "Play on this device →" that also navigates to `/board`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/Nav.tsx apps/web/src/app/page.tsx

@@ -72,6 +72,7 @@ export default function BoardGamePage() {
     const handleClick = (e: MouseEvent) => {
       const link = (e.target as HTMLElement)?.closest("a[href]");
       if (!link) return;
+      if (link.getAttribute("href") === window.location.pathname) return; // same page, nothing to lose
       if (!window.confirm("Leave this game? Your progress will be lost.")) {
         e.preventDefault();
         e.stopPropagation();
