@@ -4,6 +4,7 @@ import { motion, useAnimationControls } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { COLORS, COLOR_HEX, COLOR_GLOW, COLOR_TEXT_ON, NEUTRAL_GLOW } from "@/lib/colors";
 import { colorLabel } from "@/lib/colors";
+import { startDiceRattle, playDiceLand } from "@/lib/sound";
 import type { ColorName } from "@/lib/types";
 
 export type DicePhase = "neutral" | "spinning" | "settled";
@@ -11,12 +12,17 @@ export type DicePhase = "neutral" | "spinning" | "settled";
 export function Dice({ phase, result }: { phase: DicePhase; result: ColorName | null }) {
   const controls = useAnimationControls();
   const spinTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopRattle = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const clear = () => {
       if (spinTimer.current) {
         clearInterval(spinTimer.current);
         spinTimer.current = null;
+      }
+      if (stopRattle.current) {
+        stopRattle.current();
+        stopRattle.current = null;
       }
     };
 
@@ -26,6 +32,7 @@ export function Dice({ phase, result }: { phase: DicePhase; result: ColorName | 
         const c = COLORS[i++ % COLORS.length];
         controls.set({ backgroundColor: COLOR_HEX[c] });
       }, 70);
+      stopRattle.current = startDiceRattle();
       void controls.start({
         rotate: [0, 360, 720],
         scale: [1, 1.12, 1],
@@ -35,6 +42,7 @@ export function Dice({ phase, result }: { phase: DicePhase; result: ColorName | 
     } else {
       clear();
       const isSettled = phase === "settled" && result;
+      if (isSettled) playDiceLand();
       void controls.start({
         backgroundColor: isSettled ? COLOR_HEX[result as ColorName] : "rgba(42,42,53,0.65)",
         boxShadow: isSettled

@@ -97,13 +97,17 @@ router.post(
     const roundId = req.params.id;
     const { playerPosition } = parsed.data;
 
+    // Every query below that doesn't depend on a prior result's data runs in
+    // parallel — each round trip to the database adds real, felt latency to
+    // the roll, since the dice can't reveal until this responds.
     const out = await prisma.$transaction(async (tx) => {
-      const round = await tx.round.findUnique({ where: { id: roundId } });
+      const [round, seats] = await Promise.all([
+        tx.round.findUnique({ where: { id: roundId } }),
+        tx.roundPlayer.findMany({ where: { roundId } }),
+      ]);
       if (!round || round.status === "completed") throw new HttpError(409, "Round is not active");
 
-      const seat = await tx.roundPlayer.findUnique({
-        where: { roundId_playerPosition: { roundId, playerPosition } },
-      });
+      const seat = seats.find((s) => s.playerPosition === playerPosition);
       if (!seat) throw new HttpError(404, "Player seat not found");
       if (seat.userId) throw new HttpError(403, "Not a single-screen round");
       if (seat.hasTapped) throw new HttpError(409, "This player already tapped");
@@ -118,35 +122,42 @@ router.post(
       });
       const tapTime = new Date();
 
-      await tx.roundPlayer.update({
-        where: { id: seat.id },
-        data: { hasTapped: true, tapTime, resultColor, finalHash },
-      });
-      await tx.fairnessLog.create({
-        data: {
-          roundId,
-          userId: null,
-          playerName: seat.playerName,
-          serverSeed: round.serverSeed,
-          serverSeedHash: round.serverSeedHash,
-          nonce: round.nonce,
-          playerPosition,
-          finalHash,
-          resultColor,
-        },
-      });
+      await Promise.all([
+        tx.roundPlayer.update({
+          where: { id: seat.id },
+          data: { hasTapped: true, tapTime, resultColor, finalHash },
+        }),
+        tx.fairnessLog.create({
+          data: {
+            roundId,
+            userId: null,
+            playerName: seat.playerName,
+            serverSeed: round.serverSeed,
+            serverSeedHash: round.serverSeedHash,
+            nonce: round.nonce,
+            playerPosition,
+            finalHash,
+            resultColor,
+          },
+        }),
+      ]);
 
-      const remaining = await tx.roundPlayer.count({ where: { roundId, hasTapped: false } });
+      // The other seats' tapped state was already read above (this seat is
+      // the only one this transaction touches), so completion is known
+      // without a further round trip.
+      const remaining = seats.filter((s) => s.id !== seat.id && !s.hasTapped).length;
       let completed = false;
       if (remaining === 0) {
-        await tx.round.update({
-          where: { id: roundId },
-          data: { status: "completed", completedAt: new Date() },
-        });
-        await tx.gameRoom.update({
-          where: { id: round.roomId },
-          data: { status: "completed" },
-        });
+        await Promise.all([
+          tx.round.update({
+            where: { id: roundId },
+            data: { status: "completed", completedAt: new Date() },
+          }),
+          tx.gameRoom.update({
+            where: { id: round.roomId },
+            data: { status: "completed" },
+          }),
+        ]);
         completed = true;
       }
       return { resultColor, completed };

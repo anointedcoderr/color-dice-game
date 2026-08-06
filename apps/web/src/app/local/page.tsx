@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { clsx } from "clsx";
 import { Dice, type DicePhase } from "@/components/Dice";
@@ -34,6 +34,13 @@ interface SessionRound {
 type Step = "setup" | "playing" | "ended";
 type Revealed = { position: number; name: string; color: ColorName };
 
+const ROLL_MS = 2000; // how long the dice visibly rolls before revealing
+const REVEAL_MS = 1500; // how long the result stays on screen before auto-continuing
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function LocalPlayPage() {
   const [step, setStep] = useState<Step>("setup");
   const [count, setCount] = useState<2 | 3>(2);
@@ -47,20 +54,22 @@ export default function LocalPlayPage() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ended = useRef(false);
 
   const roomType: RoomType = count === 3 ? "three_player" : "two_player";
   const activeSeat = useMemo(() => round?.players.find((p) => !p.hasTapped) ?? null, [round]);
-  const allTapped = !!round && round.players.every((p) => p.hasTapped);
   const highlightPos = phase === "settled" ? revealed?.position : activeSeat?.playerPosition;
 
   async function startRound(idx: number) {
     setError(null);
     setBusy(true);
+    ended.current = false;
     try {
       const players = Array.from({ length: count }, (_, i) => ({
         name: names[i]?.trim() || `Player ${i + 1}`,
       }));
       const r = await api.post<LocalRound>("/api/local/rounds", { roomType, players });
+      if (ended.current) return; // "End game" was clicked while this auto-continue was in flight
       setRound(r);
       setRoundIndex(idx);
       setRevealed(null);
@@ -80,11 +89,19 @@ export default function LocalPlayPage() {
     setError(null);
     setPhase("spinning");
     try {
-      const res = await api.post<{ playerPosition: number; resultColor: ColorName; completed: boolean }>(
-        `/api/local/rounds/${round.roundId}/tap`,
-        { playerPosition: seat.playerPosition },
-      );
-      await new Promise((r) => setTimeout(r, 850));
+      // Roll for a fixed, predictable duration regardless of network speed:
+      // never reveal before the real result arrives, never linger after it does.
+      const [res] = await Promise.all([
+        api.post<{ playerPosition: number; resultColor: ColorName; completed: boolean }>(
+          `/api/local/rounds/${round.roundId}/tap`,
+          { playerPosition: seat.playerPosition },
+        ),
+        sleep(ROLL_MS),
+      ]);
+      if (ended.current) {
+        setBusy(false);
+        return; // "End game" was clicked mid-roll; the result is real but no longer ours to show
+      }
       const updatedPlayers = round.players.map((p) =>
         p.playerPosition === res.playerPosition
           ? { ...p, hasTapped: true, resultColor: res.resultColor }
@@ -109,25 +126,35 @@ export default function LocalPlayPage() {
           },
         ]);
       }
+
+      // Let the result sit on screen briefly, then keep the game going on its
+      // own: next player's turn, or straight into a new round. Only "End game"
+      // stops it.
+      await sleep(REVEAL_MS);
+      if (ended.current) return;
+
+      if (res.completed) {
+        await startRound(roundIndex + 1);
+      } else {
+        setRevealed(null);
+        setPhase("neutral");
+        setBusy(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Tap failed");
       setPhase("neutral");
-    } finally {
       setBusy(false);
     }
   }
 
-  function nextPlayer() {
-    setRevealed(null);
-    setPhase("neutral");
-  }
-
   function endGame() {
+    ended.current = true;
     if (history.length > 0) setStep("ended");
     else newGame();
   }
 
   function newGame() {
+    ended.current = true;
     setStep("setup");
     setRound(null);
     setRevealed(null);
@@ -305,22 +332,13 @@ export default function LocalPlayPage() {
                 {colorLabel(revealed.color)}
               </span>
             </p>
-            {allTapped ? (
-              <Button onClick={() => startRound(roundIndex + 1)} disabled={busy}>
-                Next round →
-              </Button>
-            ) : (
-              <Button onClick={nextPlayer} disabled={busy}>
-                Next player →
-              </Button>
-            )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
             <TapButton
               disabled={busy || !activeSeat}
               onTap={tap}
-              label={activeSeat ? `${activeSeat.name} — Tap to Play` : "Tap to Play"}
+              label={activeSeat ? `${activeSeat.name}: Play` : "Play"}
             />
             <p className="text-sm text-zinc-500">Pass the device to the player whose turn it is.</p>
           </div>
