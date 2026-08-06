@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
 import { Dice, type DicePhase } from "@/components/Dice";
 import { TapButton } from "@/components/TapButton";
@@ -42,6 +42,15 @@ export default function BoardGamePage() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ended = useRef(false);
+  // Bumped by startGame() every time a new game begins. A roll captures the
+  // id of the game it belongs to and compares it at each resume point: this
+  // catches "end game, then immediately start a new one before the old roll
+  // resolves", which `ended` alone can't - starting a new game must clear
+  // `ended` back to false for the new game's own rolls to work, and that
+  // same reset would otherwise un-cancel a still-in-flight roll from the
+  // game that was just abandoned.
+  const gameId = useRef(0);
 
   // Warn before an accidental refresh/navigation loses an in-progress game
   // (nothing here is persisted to the server).
@@ -55,12 +64,31 @@ export default function BoardGamePage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [step]);
 
+  // beforeunload only covers real browser navigation (reload/close/URL bar).
+  // Next.js <Link> client-side navigation never fires it, so intercept clicks
+  // on in-app links too while a game is in progress.
+  useEffect(() => {
+    if (step !== "playing") return;
+    const handleClick = (e: MouseEvent) => {
+      const link = (e.target as HTMLElement)?.closest("a[href]");
+      if (!link) return;
+      if (!window.confirm("Leave this game? Your progress will be lost.")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [step]);
+
   function startGame() {
-    if (!Number.isInteger(tilesPerColor) || tilesPerColor < 1) {
-      setError("Enter at least 1 tile per colour");
+    if (!Number.isInteger(tilesPerColor) || tilesPerColor < 1 || tilesPerColor > 50) {
+      setError("Enter between 1 and 50 tiles per colour");
       return;
     }
     setError(null);
+    ended.current = false;
+    gameId.current += 1;
     setPlayers(
       Array.from({ length: count }, (_, i) => ({
         name: names[i]?.trim() || `Player ${i + 1}`,
@@ -82,6 +110,7 @@ export default function BoardGamePage() {
 
   async function roll() {
     if (busy || phase !== "neutral") return;
+    const myGame = gameId.current;
     setBusy(true);
     setError(null);
     setPhase("spinning");
@@ -90,13 +119,18 @@ export default function BoardGamePage() {
         api.post<{ color: ColorName }>("/api/board/roll"),
         sleep(ROLL_MS),
       ]);
+      if (ended.current || gameId.current !== myGame) {
+        setBusy(false);
+        return; // "End game" was clicked mid-roll (or a new game already started); the result is real but no longer ours to show
+      }
       setRolledColor(res.color);
       setPhase("settled");
       setBusy(false);
 
-      if (remaining[res.color] === 0) {
+      if ((remaining[res.color] ?? 0) === 0) {
         // Nothing on the board could possibly match: auto-resolve as a miss.
         await sleep(REVEAL_MS);
+        if (ended.current || gameId.current !== myGame) return;
         passTurn();
         setRolledColor(null);
         setPhase("neutral");
@@ -109,17 +143,15 @@ export default function BoardGamePage() {
   }
 
   function confirmMatched() {
-    if (busy || !rolledColor) return;
-    setBusy(true);
+    if (!rolledColor) return;
     const color = rolledColor;
-    const updatedRemaining = { ...remaining, [color]: remaining[color] - 1 };
+    const updatedRemaining = { ...remaining, [color]: Math.max(0, remaining[color] - 1) };
     const updatedPlayers = players.map((p, i) =>
       i === activePlayerIndex ? { ...p, score: p.score + 1, streak: p.streak + 1 } : p,
     );
     setRemaining(updatedRemaining);
     setPlayers(updatedPlayers);
     setRolledColor(null);
-    setBusy(false);
 
     const boardEmpty = COLORS.every((c) => updatedRemaining[c] === 0);
     if (boardEmpty) {
@@ -130,20 +162,19 @@ export default function BoardGamePage() {
   }
 
   function confirmMissed() {
-    if (busy) return;
-    setBusy(true);
     passTurn();
     setRolledColor(null);
     setPhase("neutral");
-    setBusy(false);
   }
 
   function endGame() {
+    ended.current = true;
     if (players.some((p) => p.score > 0)) setStep("ended");
-    else setStep("setup");
+    else newGame();
   }
 
   function newGame() {
+    ended.current = true;
     setStep("setup");
     setPlayers([]);
     setRemaining(makeRemaining(0));
@@ -291,7 +322,7 @@ export default function BoardGamePage() {
       <Card className="flex flex-col items-center gap-4 py-8">
         <Dice phase={phase} result={rolledColor} />
 
-        {phase === "settled" && rolledColor && remaining[rolledColor] > 0 ? (
+        {phase === "settled" && rolledColor && (remaining[rolledColor] ?? 0) > 0 ? (
           <div className="flex flex-col items-center gap-3">
             <p className="text-center text-lg text-zinc-200">
               Rolled{" "}
