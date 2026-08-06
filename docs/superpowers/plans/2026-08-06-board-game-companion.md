@@ -18,7 +18,7 @@
 - Create: `apps/server/src/routes/board.ts`
 - Modify: `apps/server/src/index.ts`
 
-- [ ] **Step 1: Write the route file**
+- [x] **Step 1: Write the route file**
 
 Create `apps/server/src/routes/board.ts`:
 
@@ -48,7 +48,7 @@ router.post(
 export default router;
 ```
 
-- [ ] **Step 2: Register the route**
+- [x] **Step 2: Register the route**
 
 In `apps/server/src/index.ts`, add the import next to the other route imports:
 
@@ -66,12 +66,12 @@ app.use("/api/local", localRoutes); // public — single-screen pass-and-play
 app.use("/api/board", boardRoutes); // public, no auth, no persistence
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `cd apps/server && npx tsc --noEmit`
 Expected: no output, exit code 0.
 
-- [ ] **Step 4: Manually verify the endpoint**
+- [x] **Step 4: Manually verify the endpoint**
 
 Start the server if it isn't running (`npm run dev --workspace=apps/server`, or via whatever port this session is already using), then:
 
@@ -81,7 +81,7 @@ curl -s -X POST http://localhost:4500/api/board/roll
 
 Expected: a JSON body like `{"color":"blue"}` where the value is one of `red`, `black`, `blue`, `green`, `yellow`, `white`. Run it 8-10 times in a row and confirm the colors vary (not always the same one).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/server/src/routes/board.ts apps/server/src/index.ts

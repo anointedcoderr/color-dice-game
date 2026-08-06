@@ -8,6 +8,12 @@ import { COLORS } from "../shared/colors";
 // score live only in the browser tab. The one thing that must still come
 // from the server is the colour itself, so a player can never influence or
 // predict their own roll.
+//
+// Unlike /api/local and the online rooms, there is deliberately no seed
+// commitment here. That ceremony exists so a *stored* result can be
+// independently re-derived later; nothing is stored here, so a commitment
+// would have no verification target. Do not add one without also adding
+// persistence and a /verify path for it.
 
 const router = Router();
 
