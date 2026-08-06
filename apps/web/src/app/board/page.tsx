@@ -244,9 +244,9 @@ export default function BoardGamePage() {
         <Card className="space-y-2">
           {[...players]
             .sort((a, b) => b.score - a.score)
-            .map((p) => (
+            .map((p, i) => (
               <div
-                key={p.name}
+                key={p.name + i}
                 className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-3"
               >
                 <span className="font-medium">{p.name}</span>

@@ -97,7 +97,7 @@ git commit -m "Add stateless board game roll endpoint"
 
 This is one cohesive component (setup, playing, and ended steps, same structural shape as `apps/web/src/app/local/page.tsx`). It only compiles and only makes sense as a complete file, so it's written whole rather than built up across several partial saves.
 
-- [ ] **Step 1: Write the complete page**
+- [x] **Step 1: Write the complete page**
 
 Create `apps/web/src/app/board/page.tsx`:
 
@@ -344,9 +344,9 @@ export default function BoardGamePage() {
         <Card className="space-y-2">
           {[...players]
             .sort((a, b) => b.score - a.score)
-            .map((p) => (
+            .map((p, i) => (
               <div
-                key={p.name}
+                key={p.name + i}
                 className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-3"
               >
                 <span className="font-medium">{p.name}</span>
@@ -458,17 +458,17 @@ export default function BoardGamePage() {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `cd apps/web && npx tsc --noEmit`
 Expected: no output, exit code 0.
 
-- [ ] **Step 3: Lint**
+- [x] **Step 3: Lint**
 
 Run: `cd apps/web && npx next lint --dir src`
 Expected: `✔ No ESLint warnings or errors`
 
-- [ ] **Step 4: Manually verify in the browser**
+- [x] **Step 4: Manually verify in the browser**
 
 Start both dev servers (backend and frontend) if not already running. Open `/board` directly (this page has no nav link yet, that's Task 3) and walk through:
 
@@ -481,7 +481,7 @@ Start both dev servers (backend and frontend) if not already running. Open `/boa
 7. From the setup screen, try entering `0` for tiles per colour and tapping "Start game". Confirm it shows the "Enter at least 1 tile per colour" error and does not proceed.
 8. During an in-progress game, try closing or reloading the tab. Confirm the browser shows its native "leave this page?" prompt.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/app/board/page.tsx
