@@ -87,6 +87,7 @@ export default function BoardGamePage() {
       return;
     }
     setError(null);
+    setBusy(false); // release a still-disabled Roll button left over from a just-abandoned game
     ended.current = false;
     gameId.current += 1;
     setPlayers(
@@ -136,6 +137,10 @@ export default function BoardGamePage() {
         setPhase("neutral");
       }
     } catch (e) {
+      if (ended.current || gameId.current !== myGame) {
+        setBusy(false);
+        return; // this roll no longer belongs to the current game; don't surface its error there
+      }
       setError(e instanceof Error ? e.message : "Roll failed");
       setPhase("neutral");
       setBusy(false);
@@ -238,6 +243,7 @@ export default function BoardGamePage() {
               label="Tiles per colour"
               type="number"
               min={1}
+              max={50}
               value={tilesPerColor}
               onChange={(e) => setTilesPerColor(Number(e.target.value))}
             />

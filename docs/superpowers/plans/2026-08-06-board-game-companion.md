@@ -101,6 +101,8 @@ This is one cohesive component (setup, playing, and ended steps, same structural
 
 Create `apps/web/src/app/board/page.tsx`:
 
+> **Note:** the block below is the original code as specified. It went through two rounds of code review after being written (a duplicate-React-key fix, a missing cancellation-guard fix with an added `gameId` ref, an in-app navigation guard, and several smaller polish fixes) and the two have since drifted. Treat this as the historical starting point, not the current file; see `apps/web/src/app/board/page.tsx` directly or `git log -- apps/web/src/app/board/page.tsx` for what actually shipped.
+
 ```tsx
 "use client";
 
