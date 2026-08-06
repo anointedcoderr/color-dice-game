@@ -42,3 +42,6 @@ Thumbs.db
 # Misc
 coverage/
 .cache/
+
+# Superpowers brainstorming companion (local, ephemeral mockups)
+.superpowers/
