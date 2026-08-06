@@ -36,6 +36,7 @@ export function Nav() {
 
         <div className="flex items-center gap-1">
           <NavLink href="/local" label="Quick Play" active={pathname.startsWith("/local")} />
+          <NavLink href="/board" label="Board Game" active={pathname.startsWith("/board")} />
           {user && (
             <>
               <NavLink href="/lobby" label="Lobby" active={pathname.startsWith("/lobby")} />

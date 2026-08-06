@@ -41,6 +41,11 @@ export default function HomePage() {
             <Link href="/local">
               <Button className="px-6 py-3 text-base">Play on this device →</Button>
             </Link>
+            <Link href="/board">
+              <Button variant="subtle" className="px-6 py-3 text-base">
+                Board game companion
+              </Button>
+            </Link>
             <Link href={user ? "/lobby" : "/login"}>
               <Button variant="ghost" className="px-6 py-3 text-base">
                 Online multiplayer
