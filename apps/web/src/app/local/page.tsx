@@ -55,6 +55,14 @@ export default function LocalPlayPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ended = useRef(false);
+  // Bumped by startRound() every time a round is (re)started. A pending
+  // tap()/startRound() call captures the id it belongs to and compares it at
+  // each resume point: this catches "end game, then immediately start a new
+  // one before the old request resolves", which `ended` alone can't - a new
+  // start must clear `ended` back to false for its own request to work, and
+  // that same reset would otherwise un-cancel a still-in-flight request from
+  // the round/game that was just abandoned.
+  const gameId = useRef(0);
 
   const roomType: RoomType = count === 3 ? "three_player" : "two_player";
   const activeSeat = useMemo(() => round?.players.find((p) => !p.hasTapped) ?? null, [round]);
@@ -64,12 +72,14 @@ export default function LocalPlayPage() {
     setError(null);
     setBusy(true);
     ended.current = false;
+    gameId.current += 1;
+    const myGame = gameId.current;
     try {
       const players = Array.from({ length: count }, (_, i) => ({
         name: names[i]?.trim() || `Player ${i + 1}`,
       }));
       const r = await api.post<LocalRound>("/api/local/rounds", { roomType, players });
-      if (ended.current) return; // "End game" was clicked while this auto-continue was in flight
+      if (ended.current || gameId.current !== myGame) return; // superseded while this request was in flight
       setRound(r);
       setRoundIndex(idx);
       setRevealed(null);
@@ -85,6 +95,7 @@ export default function LocalPlayPage() {
   async function tap() {
     if (!round || !activeSeat || busy || phase !== "neutral") return;
     const seat = activeSeat;
+    const myGame = gameId.current;
     setBusy(true);
     setError(null);
     setPhase("spinning");
@@ -98,9 +109,9 @@ export default function LocalPlayPage() {
         ),
         sleep(ROLL_MS),
       ]);
-      if (ended.current) {
+      if (ended.current || gameId.current !== myGame) {
         setBusy(false);
-        return; // "End game" was clicked mid-roll; the result is real but no longer ours to show
+        return; // "End game" was clicked mid-roll (or a new round already started); the result is real but no longer ours to show
       }
       const updatedPlayers = round.players.map((p) =>
         p.playerPosition === res.playerPosition
@@ -131,7 +142,7 @@ export default function LocalPlayPage() {
       // own: next player's turn, or straight into a new round. Only "End game"
       // stops it.
       await sleep(REVEAL_MS);
-      if (ended.current) return;
+      if (ended.current || gameId.current !== myGame) return;
 
       if (res.completed) {
         await startRound(roundIndex + 1);
