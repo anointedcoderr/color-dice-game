@@ -34,8 +34,8 @@ export default function HomePage() {
           </h1>
           <p className="max-w-md text-zinc-400">
             A real-time multiplayer dice game with six colours — Red, Black, Blue, Green, Yellow,
-            White. The dice stays neutral until you tap; every result is generated on the server and
-            independently verifiable.
+            White. The dice stays neutral until you tap; every result is generated on the server,
+            and results in online and Quick Play rounds are independently verifiable.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/local">

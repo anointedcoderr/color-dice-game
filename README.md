@@ -19,6 +19,8 @@ The database is **Supabase Postgres**, auth is **custom JWT** (bcrypt-hashed pas
 
 - 🎨 Six-colour dice (no numbers), neutral until you tap
 - 👥 2-player and 3-player matchmaking rooms (round starts when the room is full)
+- 📴 Quick Play: single-device pass-and-play, no account needed, continuous rounds until you end the game
+- 🎯 Board Game: a dice-roller and scorekeeper companion for a physical board game with hidden coloured tiles
 - ⚡ Real-time updates over Socket.io (join, round start, taps, reveals, completion)
 - 🔐 Provably fair: SHA-256 seed commitment + per-tap HMAC-SHA256 result, seed revealed only after the round ends
 - 🧮 Public verification page that recomputes results in the browser (Web Crypto)

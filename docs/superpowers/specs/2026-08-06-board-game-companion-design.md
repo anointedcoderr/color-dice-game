@@ -57,9 +57,10 @@ instead of against them.
 
 ### Setup
 Same shape as Quick Play's setup step: player count (2 to 3), optional
-player names. One new field: **tiles per color**, a single positive integer,
-applied evenly across all 6 colors (e.g. entering 6 means 6 tiles of each
-color, 36 total on the board). Default suggestion: 6.
+player names. One new field: **tiles per color**, a positive integer from 1
+to 50 (the upper bound was added during code review to keep a game
+finishable), applied evenly across all 6 colors (e.g. entering 6 means 6
+tiles of each color, 36 total on the board). Default suggestion: 6.
 
 ### Playing
 One player is "active" at a time, starting with player 1 (turn order is
@@ -90,8 +91,11 @@ Top to bottom:
 - Player score cards in a row (one per player). The active player's card is
   highlighted; it shows a streak badge (e.g. "streak 3") only when their
   current streak is greater than 0.
-- The Dice component plus Roll button, centered, smaller than Quick Play's
-  (the scoreboard now shares the screen).
+- The Dice component plus Roll button, centered. (Originally scoped as
+  smaller than Quick Play's dice since the scoreboard now shares the screen;
+  shipped at the same size since the layout read fine as-is during testing.
+  The `Dice` component has no size prop today, so revisit this only if the
+  shared size turns out to actually crowd the screen in practice.)
 - Match/Missed buttons, shown only while a roll is awaiting confirmation
   (hidden during the auto-resolved dead-color case, and hidden once
   confirmed until the next roll).

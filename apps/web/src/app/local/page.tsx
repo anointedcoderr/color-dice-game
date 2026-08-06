@@ -347,7 +347,7 @@ export default function LocalPlayPage() {
         ) : (
           <div className="flex flex-col items-center gap-3">
             <TapButton
-              disabled={busy || !activeSeat}
+              disabled={busy || !activeSeat || phase !== "neutral"}
               onTap={tap}
               label={activeSeat ? `${activeSeat.name}: Play` : "Play"}
             />

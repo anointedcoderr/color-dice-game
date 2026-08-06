@@ -200,6 +200,10 @@ export default function BoardGamePage() {
             Roll the dice, pick from your board. The app tracks turns and score, you tell it what
             happened.
           </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Rolls come from the server, but nothing is saved here, so there is no round to verify
+            afterward.
+          </p>
         </div>
         <Card className="space-y-5">
           <div>
