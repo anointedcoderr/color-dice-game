@@ -94,3 +94,43 @@ export function playDiceLand(): void {
   if (!context) return;
   clack(context, context.currentTime, { freq: 220, q: 0.9, gain: 0.3, duration: 0.18 });
 }
+
+interface ToneOptions {
+  freq: number;
+  gain: number;
+  duration: number;
+}
+
+function tone(context: AudioContext, time: number, { freq, gain, duration }: ToneOptions): void {
+  try {
+    const osc = context.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+
+    const gainNode = context.createGain();
+    gainNode.gain.setValueAtTime(0, time);
+    gainNode.gain.linearRampToValueAtTime(gain, time + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+    osc.connect(gainNode).connect(context.destination);
+    osc.start(time);
+    osc.stop(time + duration + 0.02);
+  } catch {
+    // Same rationale as clack(): never let a sound glitch break the celebration.
+  }
+}
+
+/** A short triumphant ascending chime. Play once, when a game ends with a sole winner. */
+export function playCheer(): void {
+  const context = getContext();
+  if (!context) return;
+  const now = context.currentTime;
+  // A bright ascending arpeggio (C5, E5, G5, C6), the last note held longer
+  // for a "ta-da" landing.
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((freq, i) => {
+    const time = now + i * 0.09;
+    const duration = i === notes.length - 1 ? 0.5 : 0.16;
+    tone(context, time, { freq, gain: 0.22, duration });
+  });
+}
