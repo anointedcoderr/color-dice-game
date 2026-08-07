@@ -31,9 +31,9 @@ function makeRemaining(value: number): Record<ColorName, number> {
 }
 
 function streakEmoji(streak: number): string {
-  if (streak >= 7) return "🚀 ";
-  if (streak >= 4) return "🔥🔥 ";
-  if (streak >= 2) return "🔥 ";
+  if (streak >= 7) return "🚀";
+  if (streak >= 4) return "🔥🔥";
+  if (streak >= 2) return "🔥";
   return "";
 }
 
@@ -374,7 +374,10 @@ export default function BoardGamePage() {
             <p className="text-2xl font-extrabold text-indigo-200">{p.score}</p>
             {p.streak > 0 && (
               <p className="text-xs font-bold text-amber-300">
-                {streakEmoji(p.streak)}streak {p.streak}
+                {streakEmoji(p.streak) && (
+                  <span aria-hidden="true">{streakEmoji(p.streak)} </span>
+                )}
+                streak {p.streak}
               </p>
             )}
           </div>
