@@ -30,6 +30,13 @@ function makeRemaining(value: number): Record<ColorName, number> {
   return Object.fromEntries(COLORS.map((c) => [c, value])) as Record<ColorName, number>;
 }
 
+function streakEmoji(streak: number): string {
+  if (streak >= 7) return "🚀 ";
+  if (streak >= 4) return "🔥🔥 ";
+  if (streak >= 2) return "🔥 ";
+  return "";
+}
+
 export default function BoardGamePage() {
   const [step, setStep] = useState<Step>("setup");
   const [count, setCount] = useState<2 | 3>(2);
@@ -101,7 +108,7 @@ export default function BoardGamePage() {
       clearTimeout(timer);
       setShowCelebration(false);
     };
-  }, [step, winners]);
+  }, [step, winners.length]);
 
   function startGame() {
     if (!Number.isInteger(tilesPerColor) || tilesPerColor < 1 || tilesPerColor > 50) {
@@ -183,14 +190,19 @@ export default function BoardGamePage() {
 
     // A player has clinched the win the moment no rival could catch up even
     // if every tile still on the board went to them, so the game doesn't
-    // have to wait for the board to actually empty.
+    // have to wait for the board to actually empty. Checked for every
+    // player, not just the one who just matched: with 3 players, a rival's
+    // match still shrinks boardRemaining without raising the leader's own
+    // best challenger, so the leader can cross the clinch threshold on a
+    // turn that isn't theirs.
     const boardRemaining = COLORS.reduce((sum, c) => sum + updatedRemaining[c], 0);
-    const activeScore = updatedPlayers[activePlayerIndex].score;
-    const maxOtherScore = Math.max(
-      0,
-      ...updatedPlayers.filter((_, i) => i !== activePlayerIndex).map((p) => p.score),
-    );
-    const clinched = activeScore > maxOtherScore + boardRemaining;
+    const clinched = updatedPlayers.some((p, i) => {
+      const bestRival = Math.max(
+        0,
+        ...updatedPlayers.filter((_, j) => j !== i).map((q) => q.score),
+      );
+      return p.score > bestRival + boardRemaining;
+    });
     if (boardRemaining === 0 || clinched) {
       setStep("ended");
     } else {
@@ -303,37 +315,43 @@ export default function BoardGamePage() {
 
   // ── ENDED ──────────────────────────────────────────────────────────────
   if (step === "ended") {
+    // Celebration is a sibling of the spacing wrapper, not a child inside
+    // it: Tailwind's space-y selector keys off DOM sibling order, not
+    // layout participation, so a fixed-position child still counts as one
+    // and would push the heading down by a margin while it's mounted.
     return (
-      <div className="mx-auto max-w-lg space-y-6 py-8">
+      <>
         {showCelebration && <Celebration />}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold">Game over</h1>
-          <p className="text-zinc-400">
-            {winners.length > 1
-              ? `${winners.map((w) => w.name).join(" & ")} tie with ${maxScore} correct each!`
-              : `${winners[0]?.name ?? "Nobody"} wins with ${maxScore} correct!`}
-          </p>
+        <div className="mx-auto max-w-lg space-y-6 py-8">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold">Game over</h1>
+            <p className="text-zinc-400">
+              {winners.length > 1
+                ? `${winners.map((w) => w.name).join(" & ")} tie with ${maxScore} correct each!`
+                : `${winners[0]?.name ?? "Nobody"} wins with ${maxScore} correct!`}
+            </p>
+          </div>
+          <Card className="space-y-2">
+            {[...players]
+              .sort((a, b) => b.score - a.score)
+              .map((p, i) => (
+                <div
+                  key={p.name + i}
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-3"
+                >
+                  <span className="font-medium">{p.name}</span>
+                  <Badge>{p.score} correct</Badge>
+                </div>
+              ))}
+          </Card>
+          <div className="flex justify-center gap-3">
+            <Button onClick={startGame}>Play again (same players)</Button>
+            <Button variant="ghost" onClick={newGame}>
+              New players
+            </Button>
+          </div>
         </div>
-        <Card className="space-y-2">
-          {[...players]
-            .sort((a, b) => b.score - a.score)
-            .map((p, i) => (
-              <div
-                key={p.name + i}
-                className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-3"
-              >
-                <span className="font-medium">{p.name}</span>
-                <Badge>{p.score} correct</Badge>
-              </div>
-            ))}
-        </Card>
-        <div className="flex justify-center gap-3">
-          <Button onClick={startGame}>Play again (same players)</Button>
-          <Button variant="ghost" onClick={newGame}>
-            New players
-          </Button>
-        </div>
-      </div>
+      </>
     );
   }
 
@@ -355,7 +373,9 @@ export default function BoardGamePage() {
             <p className="text-sm font-semibold">{p.name}</p>
             <p className="text-2xl font-extrabold text-indigo-200">{p.score}</p>
             {p.streak > 0 && (
-              <p className="text-xs font-bold text-amber-300">streak {p.streak}</p>
+              <p className="text-xs font-bold text-amber-300">
+                {streakEmoji(p.streak)}streak {p.streak}
+              </p>
             )}
           </div>
         ))}
