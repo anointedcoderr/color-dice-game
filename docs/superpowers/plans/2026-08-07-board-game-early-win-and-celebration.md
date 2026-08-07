@@ -17,7 +17,7 @@
 **Files:**
 - Modify: `apps/web/src/lib/sound.ts`
 
-- [ ] **Step 1: Add the tone helper and `playCheer()`**
+- [x] **Step 1: Add the tone helper and `playCheer()`**
 
 Append this to the end of `apps/web/src/lib/sound.ts` (after the existing `playDiceLand` function, nothing else in the file changes):
 
@@ -66,21 +66,21 @@ export function playCheer(): void {
 
 This uses the same `getContext()` already defined earlier in the file (the same lazily-created, try/catch-guarded `AudioContext` the dice sounds already use); do not duplicate it.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `cd apps/web && npx tsc --noEmit`
 Expected: no output, exit code 0.
 
-- [ ] **Step 3: Lint**
+- [x] **Step 3: Lint**
 
 Run: `cd apps/web && npx next lint --dir src`
 Expected: `✔ No ESLint warnings or errors`
 
-- [ ] **Step 4: Note on verification**
+- [x] **Step 4: Note on verification**
 
 `playCheer()` isn't called from anywhere yet (Task 3 wires it up), so there's nothing to hear yet. Typecheck and lint are the full verification for this task; the actual sound is confirmed by ear in Task 3's manual check.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/sound.ts
@@ -94,7 +94,7 @@ git commit -m "Add a synthesized cheer sound for the winner celebration"
 **Files:**
 - Create: `apps/web/src/components/Celebration.tsx`
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 Create `apps/web/src/components/Celebration.tsx`:
 
@@ -194,21 +194,21 @@ export function Celebration() {
 
 `COLORS` and `COLOR_HEX` are the same shared color tokens already used throughout the app (`apps/web/src/lib/colors.ts`), reused here rather than inventing new colors. The keyframe-array pattern for `animate` (e.g. `opacity: [1, 1, 0]`) is the same style already used in `apps/web/src/components/Dice.tsx` (e.g. `scale: [1, 1.12, 1]`), so this matches established Framer Motion usage in this codebase.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `cd apps/web && npx tsc --noEmit`
 Expected: no output, exit code 0.
 
-- [ ] **Step 3: Lint**
+- [x] **Step 3: Lint**
 
 Run: `cd apps/web && npx next lint --dir src`
 Expected: `✔ No ESLint warnings or errors`
 
-- [ ] **Step 4: Note on verification**
+- [x] **Step 4: Note on verification**
 
 `Celebration` isn't mounted anywhere yet (Task 3 wires it up), so there's nothing to look at yet. Typecheck and lint are the full verification for this task; the actual visual is confirmed in Task 3's manual check.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/Celebration.tsx
@@ -224,7 +224,7 @@ git commit -m "Add the balloons-and-confetti Celebration component"
 
 This task makes five changes to the same file. Apply them in order; the file only makes sense once all five are in.
 
-- [ ] **Step 1: Update imports**
+- [x] **Step 1: Update imports**
 
 Find:
 ```tsx
@@ -252,7 +252,7 @@ import { playCheer } from "@/lib/sound";
 import type { ColorName } from "@/lib/types";
 ```
 
-- [ ] **Step 2: Add celebration state and shared winner/score derivation**
+- [x] **Step 2: Add celebration state and shared winner/score derivation**
 
 Find:
 ```tsx
@@ -294,7 +294,7 @@ Replace with:
 
 (Only the block between `const gameId = useRef(0);` and the next comment is new; everything else shown is unchanged context to locate the right spot.)
 
-- [ ] **Step 3: Add the celebration-trigger effect**
+- [x] **Step 3: Add the celebration-trigger effect**
 
 Find:
 ```tsx
@@ -329,7 +329,7 @@ Replace with:
   function startGame() {
 ```
 
-- [ ] **Step 4: Add the win-clinch check to `confirmMatched()`**
+- [x] **Step 4: Add the win-clinch check to `confirmMatched()`**
 
 Find:
 ```tsx
@@ -384,7 +384,7 @@ Replace with:
   }
 ```
 
-- [ ] **Step 5: Reset the celebration flag when a game (re)starts**
+- [x] **Step 5: Reset the celebration flag when a game (re)starts**
 
 `startGame()` and `newGame()` already explicitly reset every other piece of per-game state (`setRolledColor(null)`, `setPhase("neutral")`, etc.) rather than relying on side effects to do it. Add `showCelebration` to that same explicit list in both, for the same reason and to match that established pattern. (The effect's cleanup in Step 3 also resets it reactively; this is a second, more direct line of defense that costs nothing and matches how every other reset in these two functions already works.)
 
@@ -438,7 +438,7 @@ Replace with:
   }
 ```
 
-- [ ] **Step 6: Use the shared winner derivation and mount the celebration**
+- [x] **Step 6: Use the shared winner derivation and mount the celebration**
 
 Find:
 ```tsx
@@ -463,17 +463,17 @@ Replace with:
 
 (The rest of the "ended" block, the recap card and the "Play again"/"New players" buttons, is unchanged; it already references `maxScore` and `winners`, which now come from the top-level `useMemo`s added in Step 2 instead of being recomputed locally.)
 
-- [ ] **Step 7: Typecheck**
+- [x] **Step 7: Typecheck**
 
 Run: `cd apps/web && npx tsc --noEmit`
 Expected: no output, exit code 0.
 
-- [ ] **Step 8: Lint**
+- [x] **Step 8: Lint**
 
 Run: `cd apps/web && npx next lint --dir src`
 Expected: `✔ No ESLint warnings or errors`
 
-- [ ] **Step 9: Manually verify in the browser**
+- [x] **Step 9: Manually verify in the browser**
 
 Start both dev servers if not already running (backend on port 4500, frontend on port 3500 per `apps/server/.env` and `apps/web/.env.local`; check with `curl -s http://localhost:4500/health` and `curl -s -o /dev/null -w "%{http_code}" http://localhost:3500` before starting new ones). Navigate to `/board`.
 
@@ -487,7 +487,7 @@ Start both dev servers if not already running (backend on port 4500, frontend on
 
 If you started the dev servers yourself, stop them when done.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add apps/web/src/app/board/page.tsx
@@ -500,14 +500,14 @@ git commit -m "End the game on a clinched win, celebrate a sole winner"
 
 No file changes; final checkpoint confirming Tasks 1 to 3 work together, not just in isolation.
 
-- [ ] **Step 1: Fresh full playthrough**
+- [x] **Step 1: Fresh full playthrough**
 
 From `/board`'s setup screen, play one complete 2-player game with a slightly larger `tilesPerColor` (e.g. `4`, matching the user's original 24-tile example) all the way through, using whatever mix of Matched/Missed the real rolls produce. Confirm the game ends at the correct point (early clinch or board-empty, whichever comes first for that particular playthrough) and the celebration behaves correctly for the outcome (plays for a sole winner, doesn't for a tie).
 
-- [ ] **Step 2: Confirm no console or server errors**
+- [x] **Step 2: Confirm no console or server errors**
 
 Check the browser console and the backend terminal output across that full playthrough. Expected: no errors in either.
 
-- [ ] **Step 3: Confirm the rest of the app is unaffected**
+- [x] **Step 3: Confirm the rest of the app is unaffected**
 
 Play one quick round of Quick Play (`/local`) end to end. This feature touched no shared files (`Dice.tsx`, `TapButton.tsx`, `sound.ts`'s existing exports, `colors.ts`), so this is a cheap final check that nothing regressed.

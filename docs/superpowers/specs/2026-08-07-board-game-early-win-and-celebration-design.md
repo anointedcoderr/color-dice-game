@@ -18,42 +18,61 @@ announcement with a "popup balloon" visual and a cheer sound.
 ## 2. Early win detection ("mathematical clinch")
 
 After every **Matched** outcome, in addition to the existing board-empty
-check, also check whether the active player has already secured an
-unbeatable lead: their new score exceeds the best possible final score of
-every other player, assuming that player claimed every single tile still
-left on the board.
+check, also check whether *any* player (not only the one who just matched)
+has already secured an unbeatable lead: their score exceeds the best
+possible final score of every other player, assuming a single rival
+claimed every tile still left on the board.
 
 Formula, computed once per `confirmMatched()` call using the just-updated
-state:
+state, checked for every player:
 
 ```
 boardRemaining = sum of every color's updated remaining count
-activeScore    = the active player's updated score
-maxOtherScore  = the highest current score among every OTHER player
-clinched       = activeScore > maxOtherScore + boardRemaining
-boardEmpty     = boardRemaining === 0
+for each player p:
+  bestRival(p) = the highest score among every player OTHER than p
+  p has clinched if p.score > bestRival(p) + boardRemaining
+clinched   = true if ANY player has clinched
+boardEmpty = boardRemaining === 0
 end the game (go to the "ended" step) if clinched OR boardEmpty
 ```
 
-This subsumes the existing board-empty check (`boardRemaining === 0` is a
-simpler, equivalent way to compute the same condition the current code
-gets from `COLORS.every(c => remaining[c] === 0)`, since every count is
-already floored at 0).
+**Checking every player, not just the one who just matched, is load-bearing
+for 3+ players.** An earlier draft of this formula checked only the active
+player. That is correct for 2 players (the active player's own score is
+the only one that can change the gap), but breaks for 3: a rival's match
+still shrinks `boardRemaining` without raising the leader's own best
+challenger, so the leader can cross the clinch threshold on a turn that
+isn't theirs, and an active-player-only check would miss it.
+
+Worked counter-example: 3 players, scores 5 / 3 / 1, 2 tiles left on the
+board. Not yet clinched: the leader's bar is `bestRival(5) + boardRemaining
+= 3 + 2 = 5`, and `5 > 5` is false. Now the third player (score 1) matches:
+their score becomes 2, `boardRemaining` drops to 1. The leader did not
+act, but their bar just changed to `3 + 1 = 4`, and `5 > 4` is now true.
+An active-player-only check would only re-evaluate the player who just
+matched (score 2 against a bar of `5 + 1 = 6`, not clinched) and never
+notice the leader crossed their own threshold. Checking every player on
+every match closes this: the very next `confirmMatched()` call, regardless
+of whose turn it was, re-evaluates everyone and catches it.
+
+Because `p.score > bestRival(p) + boardRemaining` requires a strict `>`,
+at most one player can ever satisfy it (anyone who does is, by
+definition, the unique highest scorer), so "who clinched" and "who the
+recap displays as winner" can never disagree, and a clinch can never
+coincide with a tie. The existing tie-handling on the "ended" screen
+(joint winners, no arbitrary tiebreak) is unaffected and still only
+reachable through the board-empty path.
+
+`boardRemaining === 0` is a simpler, equivalent way to compute what the
+prior code got from `COLORS.every(c => remaining[c] === 0)`, since every
+count is already floored at 0, so this subsumes the existing board-empty
+check rather than running alongside a separate copy of it.
 
 Worked check against the user's example: 24 total tiles, 2 players, active
 player just reached 13. Whatever the other player currently has, call it
 `Y`, the amount still unclaimed is `24 - 13 - Y`. The clinch formula becomes
 `13 > Y + (24 - 13 - Y)`, which simplifies to `13 > 11`, always true,
 independent of `Y`. It fires at exactly 13, matching the example exactly.
-
-This also generalizes correctly to 3 players (a player clinches once no
-single rival, even if they somehow claimed every remaining tile, could
-reach or exceed the leader) and to any tile count, not just 4-per-color.
-
-A clinch can never coincide with a tie (it requires a strict `>`), so the
-existing tie-handling on the "ended" screen (joint winners, no arbitrary
-tiebreak) is unaffected and still only reachable through the board-empty
-path.
 
 ## 3. Winner celebration
 
@@ -133,3 +152,39 @@ No backend changes. No new dependencies. No database changes.
 - No persistence of "games won" across sessions; this is purely a
   same-session, client-only feature, consistent with the rest of Board
   Game mode.
+
+## 8. Amendments during implementation
+
+Three things were added or changed beyond what this spec originally
+called for, all decided during code review rather than planned upfront:
+
+- **The clinch formula changed from active-player-only to all-players.**
+  Covered in full in Section 2; the version originally in this document
+  was found to under-detect in 3-player games and has been corrected in
+  place rather than left as a historical artifact, since a wrong formula
+  in the design of record would mislead the next reader more than it
+  would inform them.
+- **`prefers-reduced-motion` support.** `Celebration` calls Framer
+  Motion's `useReducedMotion()` and renders nothing when it is set,
+  instead of playing the 44-element burst. Not in the original visual
+  design; added because a full-viewport animation of that scale is
+  exactly the class of motion that causes vestibular discomfort for users
+  with that OS-level preference set. The winner announcement text and the
+  cheer sound are unaffected, so reduced-motion users still get the win
+  confirmation, just not the decorative burst.
+- **`<Celebration />` is a sibling of the "ended" screen's spacing
+  wrapper, not a child inside it.** The original plan nested it inside
+  the `space-y-6` container alongside the heading and recap card. That
+  caused a measured 24px layout shift: Tailwind's `space-y-*` utility
+  applies its margin based on DOM sibling order, not layout
+  participation, so a `position: fixed` element still counts as a
+  sibling for that selector even though it takes up no visual space
+  itself. Moving it outside the spacing container (as a sibling wrapped
+  in a Fragment) removes it from that sibling count entirely.
+
+Two small, unplanned additions also shipped in the same work, requested
+mid-implementation rather than specified upfront: escalating streak
+emojis on the playing screen's player cards (fire at streak 2-3, double
+fire at 4-6, a rocket at 7+), and an "ended early" acknowledgement in the
+Game over recap text distinguishing a clinched win from one that ran the
+board all the way empty.

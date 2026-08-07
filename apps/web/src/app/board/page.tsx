@@ -21,6 +21,7 @@ type Step = "setup" | "playing" | "ended";
 
 const ROLL_MS = 2000; // matches Quick Play's roll duration
 const REVEAL_MS = 1500; // pause before auto-passing on a dead-colour roll
+const CELEBRATION_MS = 3000; // how long the winner celebration stays mounted
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -62,6 +63,11 @@ export default function BoardGamePage() {
   const gameId = useRef(0);
 
   const [showCelebration, setShowCelebration] = useState(false);
+  // True when the game ended via a clinch, false when it ran the board all
+  // the way empty. Can't be derived from `remaining` alone: a manual "End
+  // game" click also leaves tiles unclaimed, so this is set explicitly at
+  // the one place that knows which path actually ended it.
+  const [clinched, setClinched] = useState(false);
   const maxScore = useMemo(() => Math.max(0, ...players.map((p) => p.score)), [players]);
   const winners = useMemo(() => players.filter((p) => p.score === maxScore), [players, maxScore]);
 
@@ -103,7 +109,7 @@ export default function BoardGamePage() {
     if (step !== "ended" || winners.length !== 1) return;
     playCheer();
     setShowCelebration(true);
-    const timer = setTimeout(() => setShowCelebration(false), 3000);
+    const timer = setTimeout(() => setShowCelebration(false), CELEBRATION_MS);
     return () => {
       clearTimeout(timer);
       setShowCelebration(false);
@@ -131,6 +137,7 @@ export default function BoardGamePage() {
     setRolledColor(null);
     setPhase("neutral");
     setShowCelebration(false);
+    setClinched(false);
     setStep("playing");
   }
 
@@ -196,14 +203,20 @@ export default function BoardGamePage() {
     // best challenger, so the leader can cross the clinch threshold on a
     // turn that isn't theirs.
     const boardRemaining = COLORS.reduce((sum, c) => sum + updatedRemaining[c], 0);
-    const clinched = updatedPlayers.some((p, i) => {
+    const justClinched = updatedPlayers.some((p, i) => {
       const bestRival = Math.max(
         0,
         ...updatedPlayers.filter((_, j) => j !== i).map((q) => q.score),
       );
       return p.score > bestRival + boardRemaining;
     });
-    if (boardRemaining === 0 || clinched) {
+    if (boardRemaining === 0) {
+      // The board is genuinely empty, not "early" in any meaningful sense
+      // even if the winning tap also happened to satisfy the clinch check.
+      setClinched(false);
+      setStep("ended");
+    } else if (justClinched) {
+      setClinched(true);
       setStep("ended");
     } else {
       setPhase("neutral");
@@ -231,6 +244,7 @@ export default function BoardGamePage() {
     setRolledColor(null);
     setPhase("neutral");
     setShowCelebration(false);
+    setClinched(false);
     setError(null);
   }
 
@@ -330,6 +344,11 @@ export default function BoardGamePage() {
                 ? `${winners.map((w) => w.name).join(" & ")} tie with ${maxScore} correct each!`
                 : `${winners[0]?.name ?? "Nobody"} wins with ${maxScore} correct!`}
             </p>
+            {clinched && (
+              <p className="mt-1 text-xs text-zinc-500">
+                No one left on the board could still catch up.
+              </p>
+            )}
           </div>
           <Card className="space-y-2">
             {[...players]
@@ -360,28 +379,29 @@ export default function BoardGamePage() {
   return (
     <div className="mx-auto max-w-lg space-y-6 py-6">
       <Card className="flex flex-wrap items-center justify-center gap-2">
-        {players.map((p, i) => (
-          <div
-            key={p.name + i}
-            className={clsx(
-              "min-w-[100px] rounded-xl border p-3 text-center transition",
-              i === activePlayerIndex
-                ? "border-indigo-400/60 bg-indigo-500/15"
-                : "border-white/10 bg-black/20",
-            )}
-          >
-            <p className="text-sm font-semibold">{p.name}</p>
-            <p className="text-2xl font-extrabold text-indigo-200">{p.score}</p>
-            {p.streak > 0 && (
-              <p className="text-xs font-bold text-amber-300">
-                {streakEmoji(p.streak) && (
-                  <span aria-hidden="true">{streakEmoji(p.streak)} </span>
-                )}
-                streak {p.streak}
-              </p>
-            )}
-          </div>
-        ))}
+        {players.map((p, i) => {
+          const emoji = streakEmoji(p.streak);
+          return (
+            <div
+              key={p.name + i}
+              className={clsx(
+                "min-w-[100px] rounded-xl border p-3 text-center transition",
+                i === activePlayerIndex
+                  ? "border-indigo-400/60 bg-indigo-500/15"
+                  : "border-white/10 bg-black/20",
+              )}
+            >
+              <p className="text-sm font-semibold">{p.name}</p>
+              <p className="text-2xl font-extrabold text-indigo-200">{p.score}</p>
+              {p.streak > 0 && (
+                <p className="text-xs font-bold text-amber-300">
+                  {emoji && <span aria-hidden="true">{emoji} </span>}
+                  streak {p.streak}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </Card>
 
       <Card className="flex flex-col items-center gap-4 py-8">
