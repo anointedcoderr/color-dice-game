@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
+import { Celebration } from "@/components/Celebration";
 import { Dice, type DicePhase } from "@/components/Dice";
 import { TapButton } from "@/components/TapButton";
 import { Badge, Button, Card, Input } from "@/components/ui";
 import { api } from "@/lib/api";
 import { COLORS, COLOR_HEX, COLOR_TEXT_ON, colorLabel } from "@/lib/colors";
+import { playCheer } from "@/lib/sound";
 import type { ColorName } from "@/lib/types";
 
 interface BoardPlayer {
@@ -52,6 +54,10 @@ export default function BoardGamePage() {
   // game that was just abandoned.
   const gameId = useRef(0);
 
+  const [showCelebration, setShowCelebration] = useState(false);
+  const maxScore = useMemo(() => Math.max(0, ...players.map((p) => p.score)), [players]);
+  const winners = useMemo(() => players.filter((p) => p.score === maxScore), [players, maxScore]);
+
   // Warn before an accidental refresh/navigation loses an in-progress game
   // (nothing here is persisted to the server).
   useEffect(() => {
@@ -82,6 +88,21 @@ export default function BoardGamePage() {
     return () => document.removeEventListener("click", handleClick, true);
   }, [step]);
 
+  // Celebrate once, only for a sole winner (a tie has no one to celebrate for).
+  // The cleanup always resets showCelebration, not just the timer: if the
+  // group clicks "Play again" mid-celebration (before the 3s timeout fires),
+  // this is what stops it from staying stuck true into whatever comes next.
+  useEffect(() => {
+    if (step !== "ended" || winners.length !== 1) return;
+    playCheer();
+    setShowCelebration(true);
+    const timer = setTimeout(() => setShowCelebration(false), 3000);
+    return () => {
+      clearTimeout(timer);
+      setShowCelebration(false);
+    };
+  }, [step, winners]);
+
   function startGame() {
     if (!Number.isInteger(tilesPerColor) || tilesPerColor < 1 || tilesPerColor > 50) {
       setError("Enter between 1 and 50 tiles per colour");
@@ -102,6 +123,7 @@ export default function BoardGamePage() {
     setActivePlayerIndex(0);
     setRolledColor(null);
     setPhase("neutral");
+    setShowCelebration(false);
     setStep("playing");
   }
 
@@ -159,8 +181,17 @@ export default function BoardGamePage() {
     setPlayers(updatedPlayers);
     setRolledColor(null);
 
-    const boardEmpty = COLORS.every((c) => updatedRemaining[c] === 0);
-    if (boardEmpty) {
+    // A player has clinched the win the moment no rival could catch up even
+    // if every tile still on the board went to them, so the game doesn't
+    // have to wait for the board to actually empty.
+    const boardRemaining = COLORS.reduce((sum, c) => sum + updatedRemaining[c], 0);
+    const activeScore = updatedPlayers[activePlayerIndex].score;
+    const maxOtherScore = Math.max(
+      0,
+      ...updatedPlayers.filter((_, i) => i !== activePlayerIndex).map((p) => p.score),
+    );
+    const clinched = activeScore > maxOtherScore + boardRemaining;
+    if (boardRemaining === 0 || clinched) {
       setStep("ended");
     } else {
       setPhase("neutral");
@@ -187,6 +218,7 @@ export default function BoardGamePage() {
     setActivePlayerIndex(0);
     setRolledColor(null);
     setPhase("neutral");
+    setShowCelebration(false);
     setError(null);
   }
 
@@ -271,10 +303,9 @@ export default function BoardGamePage() {
 
   // ── ENDED ──────────────────────────────────────────────────────────────
   if (step === "ended") {
-    const maxScore = Math.max(0, ...players.map((p) => p.score));
-    const winners = players.filter((p) => p.score === maxScore);
     return (
       <div className="mx-auto max-w-lg space-y-6 py-8">
+        {showCelebration && <Celebration />}
         <div className="text-center">
           <h1 className="text-3xl font-bold">Game over</h1>
           <p className="text-zinc-400">
