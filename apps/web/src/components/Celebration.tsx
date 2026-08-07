@@ -1,9 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useMemo } from "react";
 import { COLORS, COLOR_HEX } from "@/lib/colors";
-import { useReducedMotion } from "framer-motion";
 
 const BALLOON_COUNT = 8;
 const CONFETTI_COUNT = 36;
