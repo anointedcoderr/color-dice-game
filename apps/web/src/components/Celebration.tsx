@@ -29,6 +29,14 @@ interface ConfettiPiece {
  * mount it conditionally and unmount it again after a few seconds from
  * the caller (see board/page.tsx's showCelebration state).
  * Respects prefers-reduced-motion and renders nothing if set.
+ *
+ * The randomised layout is generated once per mount (Math.random() runs
+ * during render), so this must only ever be mounted client-side after the
+ * triggering condition is known, never unconditionally or during SSR.
+ *
+ * The longest balloon (duration + delay, up to ~3.6s) can outlast the
+ * page's ~3s unmount timeout, which is fine: by then it has already eased
+ * past the top of the viewport. If either number changes, recheck that.
  */
 export function Celebration() {
   const shouldReduceMotion = useReducedMotion();
@@ -67,7 +75,7 @@ export function Celebration() {
   }
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
       {balloons.map((b) => (
         <motion.div
           key={b.id}
